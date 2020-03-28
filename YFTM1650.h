@@ -1,8 +1,13 @@
 /*-------------------------------------------------------------------------------------
 
-  YFTM1650.h - 8-segment display driver of YFRobot 4-bit digital tube module based on TM1650 chip
-  Created by yfrobot, 2017/12/25.
-  Released into the public domain.
+  YFTM1650.h - 
+  		8-segment display driver of YFRobot 4-bit digital tube module based on YFTM1650 chip
+  Created by yfrobot,Released into the public domain.
+  Changelog:
+	v1.0:
+		2017/12/25 - Initial release 
+	v1.1:
+		2020/03/25 - 统一修改TM1650为YFTM1650（避免与其他库混淆）
 
 ----------------------------------------------------------------------------------------*/
 
@@ -19,8 +24,8 @@
 
 /** Definitions **/
 
-#define _8_SEGMENT_MODE	0x00	   
-#define _7_SEGMENT_MODE	0x08	  
+#define _8_SEGMENT_MODE	0x00	  // 8段显示模式
+#define _7_SEGMENT_MODE	0x08	  // 7段显示模式
 
 #define NORMAL_MODE		0x00	  // 正常工作模式
 #define STANDBY_MODE	0x04	  // 待机工作模式
@@ -61,14 +66,16 @@ const PROGMEM byte TM1650_CDigits[128] {
   0x73, 0x67, 0x50, 0x6D, 0x78, 0x1C, 0x00, 0x00, 0x00, 0x6E, 0x00, 0x39, 0x30, 0x0F, 0x00, 0x00  // 0x70
 };
 
-class TM1650
+class YFTM1650
 {
 	public:
-		TM1650(int pin_SCK,int pin_DIO);
+		YFTM1650(int pin_SCK,int pin_DIO);
 		void	init();
 		void	clear();
 		void	displayString(char *aString);
 		void	displayString(String sString);
+		void	displayString(float value);
+		void	displayString(int value);
 		boolean displayOneDigi(unsigned char digi,unsigned char cha);
 		void	displayOn();
 		void	displayOff();
@@ -76,11 +83,16 @@ class TM1650
 		boolean displayOn(unsigned char lightLevel,unsigned char SegmentMode,unsigned char WorkMode);
 		void	setDot(unsigned int aPos, bool aState);
 		void 	setBrightness(unsigned int iBrightness);
+		int 	displayRunning(String aString);
+		int 	displayRunning(char *aString);
+		int 	displayRunningShift();
 	
 	private:
 		int _pin_SCK;			//clock in pin
 		int _pin_DIO;			//data in and out pin
 
+		char	*iPosition;
+		char	iString[TM1650_MAX_STRING+1];
 		byte 	iBuffer_num[TM1650_NUM_DIGITS+1];   // 数字位
 		byte 	iBuffer_dot[TM1650_NUM_DIGITS+1];	// 小数点位
 		byte 	SegmentMode;
@@ -98,7 +110,7 @@ class TM1650
 
 /**
 */	
-TM1650::TM1650(int pin_SCK,int pin_DIO)
+YFTM1650::YFTM1650(int pin_SCK,int pin_DIO)
 {
 	pinMode(pin_SCK, OUTPUT);
 	pinMode(pin_DIO, OUTPUT);
@@ -109,7 +121,7 @@ TM1650::TM1650(int pin_SCK,int pin_DIO)
 
 /** FrameStart_1650 
  */
-void TM1650::FrameStart_1650(void)
+void YFTM1650::FrameStart_1650(void)
 {
 
 	digitalWrite(_pin_DIO , HIGH);
@@ -119,7 +131,7 @@ void TM1650::FrameStart_1650(void)
 
 /** FrameEnd_1650 
  */
-void TM1650::FrameEnd_1650(void)
+void YFTM1650::FrameEnd_1650(void)
 {
 	digitalWrite(_pin_DIO , LOW);
 	digitalWrite(_pin_SCK , HIGH);		  
@@ -128,7 +140,7 @@ void TM1650::FrameEnd_1650(void)
 
 /** FrameAck_1650 
  */
-boolean TM1650::FrameAck_1650(void)
+boolean YFTM1650::FrameAck_1650(void)
 {
 	if(digitalRead(_pin_DIO) == LOW)
 	{
@@ -144,7 +156,7 @@ boolean TM1650::FrameAck_1650(void)
 
 /** writeByte 
  */
-boolean TM1650::writeByte(unsigned char firstByte,unsigned char secondByte)
+boolean YFTM1650::writeByte(unsigned char firstByte,unsigned char secondByte)
 {
 	unsigned char tmp;
 	unsigned char i=0;
@@ -206,10 +218,11 @@ boolean TM1650::writeByte(unsigned char firstByte,unsigned char secondByte)
 	return err;
 }
 
-/** init 
+/** init 初始化
  */
-void TM1650::init()
+void YFTM1650::init()
 {
+	iPosition = NULL;
 	for (int i=0; i<iNumDigits; i++) {
 		// iCtrl[i] = 0;
 		iBuffer_num[i] = 0;
@@ -225,7 +238,7 @@ void TM1650::init()
 /** display n  --  
  *  
  */
-boolean TM1650::displayOneDigi(unsigned char digi,unsigned char cha)
+boolean YFTM1650::displayOneDigi(unsigned char digi,unsigned char cha)
 {
 	unsigned char tmp = 0;
 	boolean err = 0;
@@ -233,10 +246,10 @@ boolean TM1650::displayOneDigi(unsigned char digi,unsigned char cha)
 	return err;
 }
 
-/** displayString  --  
+/** displayString  --  显示字符串
  *  
  */
-void TM1650::displayString(char *aString)
+void YFTM1650::displayString(char *aString)
 {
 	for (int i=0; i<iNumDigits; i++) {
 	  byte a = ((byte) aString[i]) & 0b01111111;
@@ -253,7 +266,10 @@ void TM1650::displayString(char *aString)
 	}
 }
 
-void TM1650::displayString(String sString)
+/** displayString  --  显示字符串
+ *  
+ */
+void YFTM1650::displayString(String sString)
 {
 	for (int i=0; i<iNumDigits; i++) {
 	  byte a = ((byte) sString.c_str()[i]) & 0b01111111;
@@ -270,10 +286,73 @@ void TM1650::displayString(String sString)
 	}
 }
 
+/** displayString  --  显示float
+ *  
+ */
+void YFTM1650::displayString(float value)
+{
+	// char buf[5];
+	String aString = String("") + value;
+	aString = aString + "_";
+	aString.replace("000_", "");
+	aString.replace("00_", "");
+	aString.replace("0_", "");
+	unsigned int slen = aString.length();
+
+	for (int i = 0; i < 4 - slen; i++)
+		aString = " " + aString;
+	// displayString(aString);
+	for (int i=0; i<iNumDigits; i++) {
+	  byte a = ((byte) aString.charAt(i)) & 0b01111111;
+	  byte dot = iBuffer_dot[i];
+	  // byte dot = ((byte) aString.charAt(i+1)) & 0b10000000;
+#ifndef TM1650_USE_PROGMEM	  
+	  iBuffer_num[i] = TM1650_CDigits[a];
+#else
+	  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
+#endif
+	  if (a) {
+	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
+	  }
+	  else    break;
+	}
+}
+
+/** displayString  --  显示int
+ *  	value 范围：-999 ~ 9999
+ */
+void YFTM1650::displayString(int value)
+{
+	if(value > 9999 || value < -999){
+		// 超出显示范围，则不显示
+	}else{
+		String aString = String("") + value;
+		unsigned int slen = aString.length();
+
+		for (int i = 0; i < 4 - slen; i++)
+			aString = " " + aString;
+		for (int i = 0; i<iNumDigits; i++) {
+			byte a = ((byte)aString.charAt(i)) & 0b01111111;
+			byte dot = iBuffer_dot[i];
+#ifndef TM1650_USE_PROGMEM	  
+		  iBuffer_num[i] = TM1650_CDigits[a];
+#else
+		  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
+#endif
+		  if (a) {
+		  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
+		  }
+		  else    break;
+		}
+	}
+}
 
 /** display off  --  关闭显示
+ *  	lightLevel 		亮度等级
+ *		SegmentMode 	显示模式（7/8段显示）
+ *		WorkMode		工作模式（待机/正常工作模式）
  */
-boolean TM1650::displayOff(unsigned char lightLevel,unsigned char SegmentMode,unsigned char WorkMode)
+boolean YFTM1650::displayOff(unsigned char lightLevel,unsigned char SegmentMode,unsigned char WorkMode)
 {
 	unsigned char tmp = 0;
 	boolean err = 0;
@@ -292,14 +371,16 @@ boolean TM1650::displayOff(unsigned char lightLevel,unsigned char SegmentMode,un
 
 /** display off  --  关闭显示
  */
-void TM1650::displayOff(){
+void YFTM1650::displayOff(){
 	displayOff(Brightness[7], SegmentMode, WorkMode);
 }
 
-/** display n  --  打开显示
- *  lightLevel 亮度
+/** display on  --  打开显示
+ *  	lightLevel 		亮度等级
+ *		SegmentMode 	显示模式（7/8段显示）
+ *		WorkMode		工作模式（待机/正常工作模式）
  */
-boolean TM1650::displayOn(unsigned char lightLevel,unsigned char SegmentMode,unsigned char WorkMode)
+boolean YFTM1650::displayOn(unsigned char lightLevel,unsigned char SegmentMode,unsigned char WorkMode)
 {
 	unsigned char tmp = 0;
 	boolean err = 0;
@@ -318,13 +399,13 @@ boolean TM1650::displayOn(unsigned char lightLevel,unsigned char SegmentMode,uns
 
 /** display on  --  打开显示
  */
-void TM1650::displayOn(){
+void YFTM1650::displayOn(){
 	displayOn(Brightness[7], SegmentMode, WorkMode);
 }
 
-/** clear  --  打开显示
+/** clear  --  清除显示
  */
-void TM1650::clear(){
+void YFTM1650::clear(){
 	for (int i=0; i<iNumDigits; i++) {
 		iBuffer_num[i] = 0;
 		iBuffer_dot[i] = 0;
@@ -338,7 +419,7 @@ void TM1650::clear(){
  *
  * Internal buffer is updated as well  内部缓冲区也被更新
  */
-void	TM1650::setDot(unsigned int aPos, bool aState) {
+void	YFTM1650::setDot(unsigned int aPos, bool aState) {
 	iBuffer_dot[aPos] = aState ? 0b10000000 : 0;
 	if (aPos < iNumDigits) {
 	    writeByte(DisplayAddressArray[aPos] , iBuffer_num[aPos] | iBuffer_dot[aPos]);
@@ -346,11 +427,54 @@ void	TM1650::setDot(unsigned int aPos, bool aState) {
 }
 
 /** Set brightness of all digits equally  平均设置所有数字的亮度
- * aValue - brightness value with 1 being the lowest, and 8 being the brightest   aValue - 亮度值1代表最低，8代表最亮
+ *  aValue - brightness value with 1 being the lowest, and 8 being the brightest   
+ *		aValue - 亮度值1代表最低，8代表最亮(实际设置值0~7)
  */
-void TM1650::setBrightness(unsigned int aValue) {
-	unsigned int iBrightness = Brightness[((aValue > 8) ? 8 : (aValue < 1) ? 1 : aValue)-1];
+void YFTM1650::setBrightness(unsigned int aValue) {
+	unsigned int iBrightness = Brightness[((aValue > 8) ? 8 : (aValue < 1) ? 1 : aValue) - 1];
 	writeByte(CMD_SYSTEM_CONFIG, iBrightness | SegmentMode | WorkMode | DsplayONOFF);
+}
+
+/** Display string on the display in a running fashion
+ * aString = character array to be displayed
+ *
+ * Starts with first N positions of the string.
+ * Subsequent characters are displayed with 1 char shift each time displayRunningShift() is called
+ *
+ * returns: number of iterations remaining to display the whole string
+ */
+int YFTM1650::displayRunning(String aString){
+	strncpy(iString, aString.c_str(), TM1650_MAX_STRING+1);
+	iPosition = iString;
+	iString[TM1650_MAX_STRING] = '\0'; //just in case.
+    	displayString(iPosition);
+
+	int l = strlen(iPosition);
+	if (l <= iNumDigits) return 0;
+	return (l - iNumDigits);
+}
+
+int YFTM1650::displayRunning(char *aString){
+	strncpy(iString, aString, TM1650_MAX_STRING+1);
+	iPosition = iString;
+	iString[TM1650_MAX_STRING] = '\0'; //just in case.
+    	displayString(iPosition);
+
+	int l = strlen(iPosition);
+	if (l <= iNumDigits) return 0;
+	return (l - iNumDigits);
+}
+
+/** Display next segment (shifting to the left) of the string set by displayRunning()
+ * Starts with first N positions of the string.
+ * Subsequent characters are displayed with 1 char shift each time displayRunningShift is called
+ *
+ * returns: number of iterations remaining to display the whole string
+ */
+int YFTM1650::displayRunningShift() {
+    	if (strlen(iPosition) <= iNumDigits) return 0;
+    	displayString(++iPosition);
+	return (strlen(iPosition) - iNumDigits);
 }
 
 #endif
