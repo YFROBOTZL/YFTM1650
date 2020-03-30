@@ -29,7 +29,6 @@ void loop()
     delay(200);
   }
   for (int i = 1; i <= 8; i++) {
-    Serial.println(i);
     YF_4BitDis.setBrightness(8 - i);
     delay(200);
   }
