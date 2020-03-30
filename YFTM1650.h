@@ -3,11 +3,14 @@
   YFTM1650.h - 
   		8-segment display driver of YFRobot 4-bit digital tube module based on YFTM1650 chip
   Created by yfrobot,Released into the public domain.
+  Product: https://item.taobao.com/item.htm?id=561918482249
   Changelog:
 	v1.0:
 		2017/12/25 - Initial release 
 	v1.1:
 		2020/03/25 - 统一修改TM1650为YFTM1650（避免与其他库混淆）
+					 新增显示float/double/int类型函数
+					 新增显示滚动字符函数
 
 ----------------------------------------------------------------------------------------*/
 
@@ -48,7 +51,7 @@ const unsigned char Brightness[9] = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70, 0
 const unsigned char DisplayAddressArray[4] = {DIG1_ADDRESS,DIG2_ADDRESS,DIG3_ADDRESS,DIG4_ADDRESS};
 const unsigned int iNumDigits = 4;
 //number 0-9 code
-const unsigned char Number_arr[10] =   {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f};
+//const unsigned char Number_arr[10] =   {0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f};
 
 #ifndef TM1650_USE_PROGMEM
 const byte TM1650_CDigits[128] {
@@ -72,9 +75,11 @@ class YFTM1650
 		YFTM1650(int pin_SCK,int pin_DIO);
 		void	init();
 		void	clear();
+		// void	clearDot();
 		void	displayString(char *aString);
 		void	displayString(String sString);
 		void	displayString(float value);
+		void	displayString(double value);// 与float完全相同,arduino中double和float精度完全相同
 		void	displayString(int value);
 		boolean displayOneDigi(unsigned char digi,unsigned char cha);
 		void	displayOn();
@@ -253,14 +258,13 @@ void YFTM1650::displayString(char *aString)
 {
 	for (int i=0; i<iNumDigits; i++) {
 	  byte a = ((byte) aString[i]) & 0b01111111;
-	  byte dot = iBuffer_dot[i];
 #ifndef TM1650_USE_PROGMEM	  
 	  iBuffer_num[i] = TM1650_CDigits[a];
 #else
 	  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
 #endif
 	  if (a) {
-	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
+	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | iBuffer_dot[i]);
 	  }
 	  else    break;
 	}
@@ -273,53 +277,48 @@ void YFTM1650::displayString(String sString)
 {
 	for (int i=0; i<iNumDigits; i++) {
 	  byte a = ((byte) sString.c_str()[i]) & 0b01111111;
-	  byte dot = iBuffer_dot[i];
 #ifndef TM1650_USE_PROGMEM	  
 	  iBuffer_num[i] = TM1650_CDigits[a];
 #else
 	  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
 #endif
 	  if (a) {
-	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
+	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | iBuffer_dot[i]);
 	  }
 	  else    break;
 	}
 }
 
 /** displayString  --  显示float
- *  
+ *    保留两位小数
  */
 void YFTM1650::displayString(float value)
 {
-	// char buf[5];
-	String aString = String("") + value;
-	aString = aString + "_";
-	aString.replace("000_", "");
-	aString.replace("00_", "");
-	aString.replace("0_", "");
-	unsigned int slen = aString.length();
-
-	for (int i = 0; i < 4 - slen; i++)
-		aString = " " + aString;
-	// displayString(aString);
-	for (int i=0; i<iNumDigits; i++) {
-	  byte a = ((byte) aString.charAt(i)) & 0b01111111;
-	  byte dot = iBuffer_dot[i];
-	  // byte dot = ((byte) aString.charAt(i+1)) & 0b10000000;
-#ifndef TM1650_USE_PROGMEM	  
-	  iBuffer_num[i] = TM1650_CDigits[a];
-#else
-	  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
-#endif
-	  if (a) {
-	  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
-	  }
-	  else    break;
+	int f_value = int(value*100);	// float值 放大100倍，并转换int类型
+	if(f_value > 9999){				// 当数字大于9999（四位数）则只显示后四位
+		f_value = f_value%10000;
 	}
+	if(f_value < -999){
+		iBuffer_dot[1] = 0;  // 无法显示
+	}else{
+		iBuffer_dot[1] = 0b10000000;  // 保留两位小数
+	}
+	displayString(f_value);
+	iBuffer_dot[1] = 0;  // 数码管小数点位清除
+}
+
+/** displayString  --  显示double
+ *    保留两位小数
+ *  与float完全相同,arduino中double和float精度完全相同
+ */
+void YFTM1650::displayString(double value)
+{
+	displayString(float(value));
 }
 
 /** displayString  --  显示int
  *  	value 范围：-999 ~ 9999
+ *      超出显示范围，则不显示
  */
 void YFTM1650::displayString(int value)
 {
@@ -333,14 +332,13 @@ void YFTM1650::displayString(int value)
 			aString = " " + aString;
 		for (int i = 0; i<iNumDigits; i++) {
 			byte a = ((byte)aString.charAt(i)) & 0b01111111;
-			byte dot = iBuffer_dot[i];
 #ifndef TM1650_USE_PROGMEM	  
 		  iBuffer_num[i] = TM1650_CDigits[a];
 #else
 		  iBuffer_num[i] = pgm_read_byte_near(TM1650_CDigits + a);
 #endif
 		  if (a) {
-		  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | dot);
+		  	writeByte(DisplayAddressArray[i],iBuffer_num[i] | iBuffer_dot[i]);
 		  }
 		  else    break;
 		}
@@ -410,7 +408,7 @@ void YFTM1650::clear(){
 		iBuffer_num[i] = 0;
 		iBuffer_dot[i] = 0;
 		writeByte(DisplayAddressArray[i],iBuffer_num[i] | iBuffer_dot[i]);
-  }
+	}
 }
 
 /** Directly set/clear a 'dot' next to a specific position  直接设置/清除特定位置旁边的“点”
@@ -419,7 +417,7 @@ void YFTM1650::clear(){
  *
  * Internal buffer is updated as well  内部缓冲区也被更新
  */
-void	YFTM1650::setDot(unsigned int aPos, bool aState) {
+void YFTM1650::setDot(unsigned int aPos, bool aState) {
 	iBuffer_dot[aPos] = aState ? 0b10000000 : 0;
 	if (aPos < iNumDigits) {
 	    writeByte(DisplayAddressArray[aPos] , iBuffer_num[aPos] | iBuffer_dot[aPos]);

@@ -9,18 +9,15 @@ YFTM1650 YF_4BitDis(10, 11);
 
 void setup()
 {
-
   Serial.begin(38400); //Start serial communication at 9600 for debug statements
-  Serial.println("TM1650 Example Code");
-
+  Serial.println("YFRobot TM1650 Example Code");
   YF_4BitDis.init();
-
 }
 
 void loop()
 {
   YF_4BitDis.setBrightness(1);
-  YF_4BitDis.displayString("____");
+  YF_4BitDis.displayString(String("____"));
   delay(1000);
   char line[] = "1234";
 
@@ -28,7 +25,6 @@ void loop()
   YF_4BitDis.setBrightness(7);
 
   for (int i = 1; i <= 8; i++) {
-    Serial.println(i);
     YF_4BitDis.setBrightness(i);
     delay(200);
   }
@@ -38,13 +34,19 @@ void loop()
     delay(200);
   }
 
-  YF_4BitDis.displayString("abcd");
+  YF_4BitDis.displayString(-1.235);
+  delay(1000);
+
+  YF_4BitDis.displayString(12.10);
+  delay(1000);
+
+  YF_4BitDis.displayString(String("abcd"));
   delay(2000);
 
-  YF_4BitDis.displayString("789 ");
+  YF_4BitDis.displayString(2020);
   delay(2000);
 
-  if (YF_4BitDis.displayRunning("1234567890abcdefghijklmnop")) {
+  if (YF_4BitDis.displayRunning(String("1234567890abcdefghijklmnop"))) {
     delay(500);
     while (YF_4BitDis.displayRunningShift()) {
       delay(500);
@@ -77,4 +79,3 @@ void loop()
     }
   }
 }
-
