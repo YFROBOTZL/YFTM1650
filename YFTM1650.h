@@ -294,16 +294,32 @@ void YFTM1650::displayString(String sString)
  */
 void YFTM1650::displayString(float value)
 {
-	int f_value = int(value*100);	// float值 放大100倍，并转换int类型
+	long val = value * 100;	// float值 放大100倍，并转换long类型
+	int f_value;
+	if(val > 10000){				// 判断是否超出范围10000（int值范围不够，会出错）
+		val = val % 10000;  	// 取后四位
+		f_value = int(val);		// 转换int类型
+	} else {
+		f_value = int(value * 100);	// 在范围内，float值直接放大100倍，转换int类型
+	}
+
 	if(f_value > 9999){				// 当数字大于9999（四位数）则只显示后四位
-		f_value = f_value%10000;
-	}
-	if(f_value < -999){
-		iBuffer_dot[1] = 0;  // 无法显示
+		iBuffer_dot[1] = 0b10000000;  // 保留两位小数，显示小数点
+		displayString(f_value);
+	}	else if(f_value < 100 && f_value >= 10){				// 当数字在10~99之间时
+		iBuffer_dot[1] = 0b10000000;  // 保留两位小数，显示小数点
+		String t = String(" 0") + f_value;  // 0.xx小数时，补齐0
+		displayString(t);
+	}	else if(f_value < 10 && f_value >= 0){					// 当数字在0~9之间时
+		iBuffer_dot[1] = 0b10000000;  // 保留两位小数，显示小数点
+		String t = String(" 00") + f_value;  // 0.0x小数时，补齐00
+		displayString(t);
+	}	else if(f_value < -999){
+		// 超出范围，不显示
 	}else{
-		iBuffer_dot[1] = 0b10000000;  // 保留两位小数
+		iBuffer_dot[1] = 0b10000000;  // 保留两位小数，显示小数点
+		displayString(f_value);
 	}
-	displayString(f_value);
 	iBuffer_dot[1] = 0;  // 数码管小数点位清除
 }
 
