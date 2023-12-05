@@ -22,7 +22,9 @@
 #define TM1650_USE_PROGMEM
 
 #ifdef TM1650_USE_PROGMEM
+#if defined(__AVR__)
 #include <avr/pgmspace.h>
+#endif
 #endif
 
 /** Definitions **/
